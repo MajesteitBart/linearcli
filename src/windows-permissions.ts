@@ -6,6 +6,8 @@ import { CliError } from "./errors.js";
 const run = promisify(execFile);
 const script = `
 $ErrorActionPreference = 'Stop'
+# An inherited PowerShell 7 module path is incompatible with this Windows PowerShell host.
+$env:PSModulePath = "$PSHOME\\Modules"
 try {
   $path = $env:LINEAR_ACL_PATH
   $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User

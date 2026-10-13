@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -22,7 +22,7 @@ async function windowsAcl(path: string, script: string) {
       "-NonInteractive",
       "-EncodedCommand",
       Buffer.from(
-        `$ErrorActionPreference = 'Stop'\n${script}`,
+        `$ErrorActionPreference = 'Stop'\n$env:PSModulePath = "$PSHOME\\Modules"\n${script}`,
         "utf16le",
       ).toString("base64"),
     ],
@@ -340,6 +340,35 @@ test("secret redaction and unsafe credential files fail cleanly", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test(
+  "Windows credential checks ignore incompatible inherited PowerShell modules",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "linear-module-path-"));
+    try {
+      const modules = join(dir, "modules");
+      const module = join(modules, "Microsoft.PowerShell.Security");
+      await mkdir(module, { recursive: true });
+      await writeFile(
+        join(module, "Microsoft.PowerShell.Security.psm1"),
+        'function Get-Acl { throw "Incompatible inherited module was loaded" }\nExport-ModuleMember -Function Get-Acl\n',
+      );
+      const credentials = join(dir, "credentials");
+      await new Store("default", credentials).write({
+        endpoint: "https://mcp.linear.app/mcp",
+      });
+      const result = await cli(["--json", "auth", "status"], {
+        LINEAR_CONFIG_DIR: credentials,
+        PSModulePath: modules,
+      });
+      assert.equal(result.code, 0, result.stdout + result.stderr);
+      assert.equal(JSON.parse(result.stdout).data.authenticated, false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 test(
   "Windows credential ACLs survive replacement and reject unrelated readers",
