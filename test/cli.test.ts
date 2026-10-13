@@ -377,6 +377,20 @@ test(
     const dir = await mkdtemp(join(tmpdir(), "linear-acl-'$-"));
     const store = new Store("default", dir);
     try {
+      await windowsAcl(
+        dir,
+        `
+$principal = [System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent())
+if ($principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  $acl = Get-Acl -LiteralPath $env:LINEAR_TEST_ACL_PATH
+  $acl.SetOwner([System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+  [System.IO.Directory]::SetAccessControl($env:LINEAR_TEST_ACL_PATH, $acl)
+  if ((Get-Acl -LiteralPath $env:LINEAR_TEST_ACL_PATH).GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne 'S-1-5-32-544') {
+    throw 'Cannot create an Administrators-owned regression fixture.'
+  }
+}
+`,
+      );
       const credentials = {
         endpoint: "https://mcp.linear.app/mcp",
         tokens: { access_token: "private-access", token_type: "Bearer" },

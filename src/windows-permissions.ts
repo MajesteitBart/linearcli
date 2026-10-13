@@ -12,8 +12,15 @@ try {
   $path = $env:LINEAR_ACL_PATH
   $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   $acl = Get-Acl -LiteralPath $path
-  if ($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $user.Value) {
-    throw 'Credentials and their directory must be owned by you.'
+  $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  if ($owner -ne $user.Value) {
+    # Elevated Windows accounts can create objects owned by the Administrators group.
+    $principal = [System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent())
+    if ($env:LINEAR_ACL_ACTION -ne 'protect' -or $owner -ne 'S-1-5-32-544' -or
+        -not $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+      throw 'Credentials and their directory must be owned by you.'
+    }
+    $acl.SetOwner($user)
   }
   $allowed = @($user.Value, 'S-1-5-18', 'S-1-5-32-544')
   if ($env:LINEAR_ACL_ACTION -eq 'protect') {
