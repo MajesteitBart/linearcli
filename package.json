@@ -1,0 +1,41 @@
+{
+  "name": "@bartadmin/linear-cli",
+  "version": "0.1.0",
+  "description": "Linear hosted MCP tools from a shared OAuth CLI",
+  "type": "module",
+  "bin": {
+    "linear": "dist/cli.js",
+    "linear-cli": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "install-local": "npm run build && node scripts/install-local.mjs",
+    "format": "prettier --write src test scripts README.md package.json tsconfig.json",
+    "format:check": "prettier --check src test scripts README.md package.json tsconfig.json",
+    "pretest": "npm run build",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "ajv": "^8.17.1",
+    "commander": "^14.0.0",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0"
+  }
+}
