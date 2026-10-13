@@ -3,12 +3,38 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { fixture, catalog } from "./fixture.js";
 import { login, status } from "../src/auth.js";
 import { Store } from "../src/store.js";
 import { withSession } from "../src/mcp.js";
 import { argumentsFor, resolveTool } from "../src/arguments.js";
+const run = promisify(execFile);
+async function windowsAcl(path: string, script: string) {
+  return run(
+    join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32/WindowsPowerShell/v1.0/powershell.exe",
+    ),
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-EncodedCommand",
+      Buffer.from(
+        `$ErrorActionPreference = 'Stop'\n${script}`,
+        "utf16le",
+      ).toString("base64"),
+    ],
+    { windowsHide: true, env: { ...process.env, LINEAR_TEST_ACL_PATH: path } },
+  );
+}
+const grantEveryone = `
+$acl = Get-Acl -LiteralPath $env:LINEAR_TEST_ACL_PATH
+$sid = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, 'Read', 'Allow'))
+[System.IO.File]::SetAccessControl($env:LINEAR_TEST_ACL_PATH, $acl)
+`;
 function cli(
   args: string[],
   env: NodeJS.ProcessEnv = {},
@@ -166,8 +192,10 @@ test("OAuth dynamic registration, PKCE, state validation, isolated profiles and 
       { timeoutMs: 5000, scope: "read write" },
       server.authorize,
     );
-    assert.equal((await stat(store.file)).mode & 0o777, 0o600);
-    assert.equal((await stat(dir)).mode & 0o777, 0o700);
+    if (process.platform !== "win32") {
+      assert.equal((await stat(store.file)).mode & 0o777, 0o600);
+      assert.equal((await stat(dir)).mode & 0o777, 0o700);
+    }
     assert.equal((await status(store)).source, "oauth");
     assert.equal(await new Store("personal", dir).read(), undefined);
     const data = await store.read();
@@ -300,6 +328,8 @@ test("secret redaction and unsafe credential files fail cleanly", async () => {
       }),
       { mode: 0o644 },
     );
+    if (process.platform === "win32")
+      await windowsAcl(store.file, grantEveryone);
     const unsafe = await cli(["--json", "auth", "status"], {
       LINEAR_CONFIG_DIR: dir,
     });
@@ -310,6 +340,55 @@ test("secret redaction and unsafe credential files fail cleanly", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test(
+  "Windows credential ACLs survive replacement and reject unrelated readers",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "linear-acl-'$-"));
+    const store = new Store("default", dir);
+    try {
+      const credentials = {
+        endpoint: "https://mcp.linear.app/mcp",
+        tokens: { access_token: "private-access", token_type: "Bearer" },
+      };
+      await store.write(credentials);
+      assert.deepEqual(await store.read(), credentials);
+      await store.write({ ...credentials, expiresAt: 123 });
+      assert.equal((await store.read())?.expiresAt, 123);
+      for (const path of [dir, store.file]) {
+        const { stdout } = await windowsAcl(
+          path,
+          `
+$acl = Get-Acl -LiteralPath $env:LINEAR_TEST_ACL_PATH
+$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+@{
+  protected = $acl.AreAccessRulesProtected
+  owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  readers = @($rules | Where-Object AccessControlType -eq 'Allow' | ForEach-Object { $_.IdentityReference.Value })
+} | ConvertTo-Json -Compress
+`,
+        );
+        const acl = JSON.parse(stdout);
+        assert.equal(acl.protected, true);
+        assert.equal(acl.owner, acl.user);
+        assert.deepEqual(
+          acl.readers.sort(),
+          [acl.user, "S-1-5-18", "S-1-5-32-544"].sort(),
+        );
+      }
+      await windowsAcl(store.file, grantEveryone);
+      await assert.rejects(store.read(), (error: unknown) => {
+        assert.equal((error as { code: string }).code, "UNSAFE_CONFIG");
+        assert.doesNotMatch(String(error), /private-access/);
+        return true;
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
 test("known secrets, bearer headers and OAuth code query values are redacted", async () => {
   const { rememberSecret, redact } = await import("../src/errors.js");
   rememberSecret("known-secret-value");

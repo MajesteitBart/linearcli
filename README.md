@@ -70,7 +70,7 @@ Credentials, registered client information and discovery metadata live in:
 - otherwise `$XDG_CONFIG_HOME/linear-cli/<profile>.json`;
 - otherwise `~/.config/linear-cli/<profile>.json`.
 
-Credentials are local plaintext protected by owner-only directory (`0700`) and file (`0600`) permissions. Writes use an atomic rename. Symlink credential files and files owned by another user are rejected. OAuth state and PKCE verifiers remain in memory during login. Tokens and client secrets are redacted from CLI output and errors. Treat the configuration directory as sensitive and keep it out of Git and shared folders.
+Credentials are local plaintext. On Unix, the directory uses `0700` permissions and files use `0600`. On Windows, the CLI uses Windows PowerShell to restrict and check ACLs, allowing only your account, SYSTEM and Administrators. New credential files receive restricted ACLs before the atomic rename. Symlink credential files and files owned by another user are rejected. OAuth state and PKCE verifiers remain in memory during login. Tokens and client secrets are redacted from CLI output and errors. Treat the configuration directory as sensitive and keep it out of Git and shared folders.
 
 `LINEAR_MCP_URL` or `--endpoint` overrides the endpoint. HTTPS is required except for localhost test servers. Saved OAuth credentials are bound to their endpoint and authorization server. Environment credentials use the explicitly selected endpoint or the official default; do not point them at a server you do not trust. `--timeout` controls network/MCP request timeouts (default 30 seconds, maximum 600).
 

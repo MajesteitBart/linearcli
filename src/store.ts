@@ -23,6 +23,7 @@ import {
   OAuthClientInformationSchema,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { CliError, rememberSecret } from "./errors.js";
+import { windowsPermissions } from "./windows-permissions.js";
 export const DEFAULT_ENDPOINT = "https://mcp.linear.app/mcp";
 export interface Credentials {
   endpoint: string;
@@ -88,7 +89,8 @@ async function secureDirectory(path: string) {
       "UNSAFE_CONFIG",
       `Config directory must be owned by you and not a symlink: ${path}`,
     );
-  await chmod(path, 0o700);
+  if (process.platform === "win32") await windowsPermissions(path, "protect");
+  else await chmod(path, 0o700);
 }
 export class Store {
   readonly file: string;
@@ -112,7 +114,9 @@ export class Store {
           "UNSAFE_CONFIG",
           "Credentials must be a regular file owned by you.",
         );
-      if ((stat.mode & 0o077) !== 0)
+      if (process.platform === "win32")
+        await windowsPermissions(this.file, "check");
+      else if ((stat.mode & 0o077) !== 0)
         throw new CliError(
           "UNSAFE_CONFIG",
           `Credentials are accessible to other users; run chmod 600 '${this.file}'.`,
@@ -154,8 +158,10 @@ export class Store {
         mode: 0o600,
         flag: "wx",
       });
+      if (process.platform === "win32")
+        await windowsPermissions(temp, "protect");
       await rename(temp, this.file);
-      await chmod(this.file, 0o600);
+      if (process.platform !== "win32") await chmod(this.file, 0o600);
     } finally {
       await rm(temp, { force: true });
     }
