@@ -6,7 +6,24 @@ The CLI calls `https://mcp.linear.app/mcp` internally. It discovers the tool cat
 
 ## Install
 
-From this repository:
+Clone the repository and open its directory:
+
+```bash
+git clone https://github.com/MajesteitBart/linearcli.git
+cd linearcli
+```
+
+On Windows, use PowerShell or Git Bash:
+
+```powershell
+npm ci
+npm run build
+npm link
+```
+
+This installs `linear` and `linear-cli` in npm's global bin directory. Keep the checkout and its `node_modules` in place, and ensure that directory is on your PATH. Windows PowerShell is required to protect and check credential ACLs.
+
+On Linux or macOS:
 
 ```bash
 npm ci
@@ -15,6 +32,15 @@ npm run install-local
 ```
 
 This installs `linear` and `linear-cli` launchers in `~/.local/bin` pointing to this checkout. Keep the checkout and its `node_modules`, and put `~/.local/bin` on your PATH. To update, update this checkout, run `npm ci` and `npm run build`. Alternatively, `npm link` installs the package’s standard Node executables. This package has not been published to npm.
+
+If an older Windows installation reports `UNSAFE_CONFIG` after upgrading, clear the old local login and authenticate again:
+
+```powershell
+linear auth logout
+linear auth login
+```
+
+This removes the selected profile's saved credentials and creates a new login with restricted Windows permissions. Existing grants in Linear remain until you revoke them.
 
 Check from any directory:
 
@@ -70,7 +96,7 @@ Credentials, registered client information and discovery metadata live in:
 - otherwise `$XDG_CONFIG_HOME/linear-cli/<profile>.json`;
 - otherwise `~/.config/linear-cli/<profile>.json`.
 
-Credentials are local plaintext. On Unix, the directory uses `0700` permissions and files use `0600`. On Windows, the CLI uses Windows PowerShell to restrict and check ACLs, allowing only your account, SYSTEM and Administrators. New credential files receive restricted ACLs before the atomic rename. Symlink credential files and files owned by another user are rejected. OAuth state and PKCE verifiers remain in memory during login. Tokens and client secrets are redacted from CLI output and errors. Treat the configuration directory as sensitive and keep it out of Git and shared folders.
+Credentials are local plaintext. On Unix, the directory uses `0700` permissions and files use `0600`. On Windows, the CLI uses Windows PowerShell to restrict and check ACLs, allowing only your account, SYSTEM and Administrators. New credential files receive restricted ACLs before the atomic rename. Symlink credential files and files owned by another user are rejected. OAuth state and PKCE verifiers remain in memory during login. Tokens and client secrets are redacted from CLI output and errors. Treat the configuration directory as sensitive and keep it out of Git and shared folders. If you set `LINEAR_CONFIG_DIR` to a directory inside a project, add that directory to the project's `.gitignore`.
 
 `LINEAR_MCP_URL` or `--endpoint` overrides the endpoint. HTTPS is required except for localhost test servers. Saved OAuth credentials are bound to their endpoint and authorization server. Environment credentials use the explicitly selected endpoint or the official default; do not point them at a server you do not trust. `--timeout` controls network/MCP request timeouts (default 30 seconds, maximum 600).
 
@@ -164,7 +190,7 @@ Errors may include `error.details` for schema validation or a failed MCP result.
 
 ## Coding-agent skill
 
-The included [companion skill](skills/linear-cli/SKILL.md) teaches discovery, shared authentication, reads and dry-run writes. It is installed for Codex on this machine under `~/.codex/skills/linear-cli`. To use it elsewhere, copy the skill folder into your coding agent's skill directory and update its installation reference if necessary. Every agent that can run shell commands can use the CLI without an MCP configuration.
+The included [companion skill](skills/linear-cli/SKILL.md) teaches discovery, shared authentication, reads and dry-run writes. Copy `skills/linear-cli` into your coding agent's skill directory, such as `~/.codex/skills/linear-cli` for Codex or `~/.agent/skills/linear-cli` for an agent that reads that location. Every agent that can run shell commands can use the CLI without an MCP configuration.
 
 `auth status` reports credential presence and expiry. `doctor` adds an unauthenticated endpoint reachability check; it does not verify that a stored token still has workspace access. An authenticated read such as `teams list` verifies that access.
 
@@ -178,5 +204,7 @@ npm test
 ```
 
 Tests use a local HTTP MCP/OAuth fixture through the official client SDK. They cover paginated discovery, dynamic arguments, stdin, dry-run prevention, JSON output/exit codes, PKCE and dynamic registration, state rejection, login timeout, secure persistence, isolated profiles and concurrent refresh. They never mutate Linear data. A real Linear OAuth login and authenticated workspace read require your own grant; local tests do not establish production workspace access.
+
+GitHub Actions runs these checks on Windows and Linux with Node.js 22 and 24. See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 Sources: [Linear MCP documentation](https://linear.app/docs/mcp), [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk).

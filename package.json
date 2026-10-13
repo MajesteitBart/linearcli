@@ -17,8 +17,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "install-local": "npm run build && node scripts/install-local.mjs",
-    "format": "prettier --write src test scripts README.md package.json tsconfig.json",
-    "format:check": "prettier --check src test scripts README.md package.json tsconfig.json",
+    "format": "prettier --write src test scripts skills .github README.md SECURITY.md package.json tsconfig.json",
+    "format:check": "prettier --check src test scripts skills .github README.md SECURITY.md package.json tsconfig.json",
     "pretest": "npm run build",
     "prepack": "npm run build"
   },

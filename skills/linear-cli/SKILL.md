@@ -3,7 +3,7 @@ name: linear-cli
 description: Use the installed linear terminal CLI to read and manage Linear issues, projects, teams and other resources through a shared OAuth login. Prefer this CLI for Linear work from coding agents when it is available.
 ---
 
-Use `command -v linear`, then `linear --json doctor` to check setup. If missing, installation instructions live at `/home/bartadmin/Development/linear-cli/README.md`.
+Use `Get-Command linear` in PowerShell or `command -v linear` in a POSIX shell, then `linear --json doctor` to check setup. If missing, follow the [repository installation instructions](https://github.com/MajesteitBart/linearcli#install). On Windows, build the checkout and use `npm link`.
 
 Authentication is shared across terminal agents. `linear auth login` opens browser consent; user interaction is needed only for login. Ordinary commands must not initiate login. `LINEAR_API_KEY` or `LINEAR_ACCESS_TOKEN` overrides saved OAuth credentials. Use `--profile NAME` for a separately authenticated workspace.
 
